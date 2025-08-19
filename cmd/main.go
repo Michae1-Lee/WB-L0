@@ -40,9 +40,8 @@ func main() {
 	ui := ui2.NewSimpleUi()
 	warmer := cache.NewWarmer(orderRepo, orderCache)
 
-	err = warmer.Warm(ctx)
-	if err != nil {
-		return
+	if err := warmer.Warm(ctx); err != nil {
+		sugar.Warnw("cache warm failed", "err", err)
 	}
 
 	orderCache.Show()

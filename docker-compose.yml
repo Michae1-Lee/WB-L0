@@ -16,7 +16,7 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
@@ -60,10 +60,12 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "bash", "-lc", "kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1" ]
+      test: [ "CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 30
+
+
 
 
 volumes:
