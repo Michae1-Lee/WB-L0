@@ -30,6 +30,7 @@ func NewConsumer(brokers []string, topic, groupID string, logger *zap.SugaredLog
 		GroupID:        groupID,
 		Topic:          topic,
 		CommitInterval: 0,
+		StartOffset:    kafka.FirstOffset,
 	})
 
 	return &Consumer{reader: r, logger: logger, service: svc, cache: cache}
@@ -41,7 +42,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 		"brokers", cfg.Brokers, "topic", cfg.Topic, "group", cfg.GroupID)
 
 	for {
-		m, err := c.reader.ReadMessage(ctx)
+		m, err := c.reader.FetchMessage(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				c.logger.Infow("kafka consumer stopped")
@@ -55,17 +56,15 @@ func (c *Consumer) Start(ctx context.Context) error {
 		var order models.Order
 		if err := json.Unmarshal(m.Value, &order); err != nil {
 			c.logger.Errorw("bad message json", "err", err, "payload", string(m.Value))
-			_ = c.reader.CommitMessages(ctx, m)
 			continue
 		}
+
 		if order.OrderUID == "" {
 			c.logger.Errorw("message missing order_uid", "payload", string(m.Value))
-			_ = c.reader.CommitMessages(ctx, m)
 			continue
 		}
 
 		orderUid, err := c.service.UpsertOrder(ctx, order)
-
 		if err != nil {
 			c.logger.Errorw("upsert failed", "order_uid", order.OrderUID, "err", err)
 			continue
@@ -78,6 +77,10 @@ func (c *Consumer) Start(ctx context.Context) error {
 			continue
 		}
 
-		c.logger.Infow("message processed", "order_uid", order.OrderUID, "partition", m.Partition, "offset", m.Offset)
+		c.logger.Infow("message processed",
+			"order_uid", order.OrderUID,
+			"partition", m.Partition,
+			"offset", m.Offset,
+		)
 	}
 }
